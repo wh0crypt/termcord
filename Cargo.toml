@@ -1,0 +1,20 @@
+[package]
+name = "termcord"
+version = "0.1.0"
+authors = ["wh0crypt <wh0crypt@protonmail.com>"]
+edition = "2021"
+description = "A lightweight, IRC-style Discord client for your terminal, written in Rust."
+repository = "https://github.com/wh0crypt/termcord"
+license = "MIT OR Apache-2.0"
+keywords = ["discord", "tui", "terminal", "chat", "irc"]
+categories = ["command-line-utilities", "development-tools::cargo-plugins"]
+exclude = [".github/"]
+
+[dependencies]
+tokio = { version = "1", features = ["full"] }          # Async runtime
+serenity = { version = "0.11", features = ["client"] }  # Discord client
+ratatui = "0.21"                                        # Terminal UI
+crossterm = "0.27"                                      # Terminal input and control
+serde = { version = "1.0", features = ["derive"] }      # Serialization and config
+toml = "0.7"
+tracing = "0.1"                                         # Async logging
