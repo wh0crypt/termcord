@@ -1,0 +1,95 @@
+name: TermCord CI/CD
+
+on:
+  push:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_release:
+    name: TermCord Release - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        toolchain: [stable]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        run: |
+          rustup update ${{ matrix.toolchain }}
+          rustup default ${{ matrix.toolchain }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Format code
+        run: cargo fmt
+
+      - name: Run Clippy (strict)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Run tests
+        run: cargo test --release
+
+      - name: Bump version and commit
+        id: bump_version
+        run: |
+          cargo install cargo-release --force
+          cargo release patch --no-publish --no-push --no-tag
+
+          VERSION=$(cargo pkgid | sed 's/.*#//')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+        env:
+          TERM_CORD_TOKEN: ${{ secrets.TERM_CORD_TOKEN }}
+
+      - name: Publish to crates.io
+        run: cargo publish --token ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Package binary
+        run: |
+          BIN_NAME=termcord
+          VERSION=${{ env.VERSION }}
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            BIN_NAME=termcord.exe
+            zip -j termcord-windows-${VERSION}.zip target/release/$BIN_NAME
+          elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+            tar -czf termcord-macos-${VERSION}.tar.gz -C target/release $BIN_NAME
+          else
+            tar -czf termcord-linux-${VERSION}.tar.gz -C target/release $BIN_NAME
+          fi
+
+      - name: Create GitHub release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: TermCord v${{ env.VERSION }}
+          draft: false
+          prerelease: false
+        env:
+          TERM_CORD_TOKEN: ${{ secrets.TERM_CORD_TOKEN }}
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            termcord-windows-*.zip
+            termcord-macos-*.tar.gz
+            termcord-linux-*.tar.gz
+        env:
+          TERM_CORD_TOKEN: ${{ secrets.TERM_CORD_TOKEN }}
